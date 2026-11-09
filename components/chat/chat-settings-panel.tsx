@@ -1,4 +1,6 @@
 "use client";
+
+import { loadCallFirstSpeaker, saveCallFirstSpeaker, type CallFirstSpeaker } from "@/lib/call-first-speaker";
 import {InspectionPermissionSettings} from "./inspection-permission-settings";
 import { CHARACTER_REMARK_LANGUAGE_INSTRUCTION } from "@/lib/social-language-instructions";
 
@@ -334,6 +336,8 @@ export function ChatSettingsPanel({
     onOfflineHistoryCleared,
     offlineHistoryBusy = false,
 }: ChatSettingsPanelProps) {
+    const callPreferenceId = session.isGroup ? `group:${session.id}` : session.contactId;
+    const [firstSpeaker, setFirstSpeaker] = useState(() => loadCallFirstSpeaker(callPreferenceId));
     const [backgroundImage, setBackgroundImage] = useState<string>(session.backgroundImage || "");
     const [alias, setAlias] = useState<string>(session.alias || "");
     const [characterRemarkForUser, setCharacterRemarkForUser] = useState<string>(session.characterRemarkForUser || "");
@@ -1039,7 +1043,7 @@ export function ChatSettingsPanel({
                 ) : (
                     <div className="chat-msg-wrapper" data-role={resultRole}>
                         {resultRole === "assistant" && (
-                            <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
+                            <div data-chat-avatar className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
                                 {senderChar?.avatar ? (
                                     <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
                                 ) : (
@@ -1084,7 +1088,7 @@ export function ChatSettingsPanel({
                             </div>
                         </div>
                         {resultRole === "user" && (
-                            <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
+                            <div data-chat-avatar className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
                                 {effectiveUserAvatar ? (
                                     <img src={effectiveUserAvatar} alt="Me" className="w-full h-full object-cover rounded-[20px]" />
                                 ) : (
@@ -1588,6 +1592,28 @@ export function ChatSettingsPanel({
                         <SessionChatSoundsSection session={session} accent={BINDING_ACCENTS.voice} onUpdate={updateSession} />
                     </>
                 )}
+
+                <div className="menu-group">
+                    <label className="menu-item">
+                        <div className="menu-label-group">
+                            <span className="menu-label">通话时谁先开口</span>
+                            <span className="menu-desc">{session.isGroup ? "群语音 · 对方先说时从参会角色中选一位" : "适用于此会话的语音和视频通话"}</span>
+                        </div>
+                        <select
+                            className="chat-user-voice-select"
+                            value={firstSpeaker}
+                            onChange={event => {
+                                const next = event.target.value as CallFirstSpeaker;
+                                saveCallFirstSpeaker(callPreferenceId, next);
+                                setFirstSpeaker(next);
+                            }}
+                        >
+                            <option value="user">我先说</option>
+                            <option value="character">对方先说</option>
+                            <option value="random">每通随机</option>
+                        </select>
+                    </label>
+                </div>
 
                 {/* Backgrounds & UI */}
                 <div className="menu-group">

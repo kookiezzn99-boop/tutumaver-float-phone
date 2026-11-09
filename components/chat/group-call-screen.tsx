@@ -1,4 +1,5 @@
 "use client";
+import { loadCallFirstSpeaker } from "@/lib/call-first-speaker";
 import {DraggableMediaWindow} from "@/components/ui/draggable-media-window";
 import { VoiceFavoriteDialog } from "./voice-favorite-dialog";
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -60,6 +61,7 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
     const setCallState = useCallback((next: CallState) => { stateRef.current = next; setRawState(next); }, []);
     const callIdRef = useRef(`call-${session.id}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`);
     const initialized = useRef(false), endWritten = useRef(false);
+    const firstSpeakerHandled = useRef(false);
     const generationRef = useRef<AbortController | null>(null);
     const audioTokenRef = useRef(0), audioAbortRef = useRef<(() => void) | null>(null);
     const subtitleAudioCacheRef = useRef(new Map<string, Blob>());
@@ -185,7 +187,7 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
         setInterimText("");
         setCallState("IDLE");
     }, [started, isVideo, session, type, setCallState]);
-    const runConversationTurn = useCallback(async () => {
+    const runConversationTurn = useCallback(async (firstSpeakerId?: string) => {
         if (!started || stateRef.current !== "IDLE" || !presentRef.current.length)
             return;
         setCallState("PROCESSING");
@@ -197,14 +199,17 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
         generationRef.current = request;
         try {
             messagesRef.current = loadChatMessages(session.id);
-            const results = await generateGroupChatCompletion(session, messagesRef.current, undefined, { appTags: ["group_chat", type], disableTools: true, skipMemorySummarization: true, callFormatInstruction: isVideo ? VIDEO_CALL_FORMAT : VOICE_CALL_FORMAT, signal: request.signal, activeCall: { id: callIdRef.current, type, participantIds: [...presentRef.current] } });
+            const firstSpeaker = characters.find(character => character.id === firstSpeakerId);
+            const results = await generateGroupChatCompletion(session, messagesRef.current, undefined, {
+                directorInstruction: firstSpeaker ? `通话刚接通。只由 ${groupMemberName(session, firstSpeaker.id, firstSpeaker)} 先自然开口，其他成员等下一轮。` : undefined,
+                appTags: ["group_chat", type], disableTools: true, skipMemorySummarization: true, callFormatInstruction: isVideo ? VIDEO_CALL_FORMAT : VOICE_CALL_FORMAT, signal: request.signal, activeCall: { id: callIdRef.current, type, participantIds: [...presentRef.current] } });
             if (request.signal.aborted || (stateRef.current as string) === "ENDED" || generationRef.current !== request)
                 return;
             const added: SubtitleEntry[] = [], firsts: Record<string, string> = {}, spoke = new Set<string>();
             for (const result of results) {
                 if (request.signal.aborted || (stateRef.current as string) === "ENDED")
                     break;
-                if (!characters.some(c => c.id === result.characterId))
+                if ((firstSpeakerId && result.characterId !== firstSpeakerId) || !characters.some(c => c.id === result.characterId))
                     continue;
                 for (const output of parseCallOutput(result.responseText)) {
                     if (request.signal.aborted || (stateRef.current as string) === "ENDED")
@@ -251,6 +256,16 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
             }
         }
     }, [started, session, type, isVideo, characters, updateParticipants, setCallState]);
+
+    useEffect(() => {
+        if (isVideo || !started || callState !== "IDLE" || firstSpeakerHandled.current || !presentRef.current.length) return;
+        firstSpeakerHandled.current = true;
+        const preference = loadCallFirstSpeaker(`group:${session.id}`);
+        const members = presentRef.current;
+        const choices = preference === "random" ? [undefined, ...members] : members;
+        const first = preference === "user" ? undefined : choices[Math.floor(Math.random() * choices.length)];
+        if (first) void runConversationTurn(first);
+    }, [isVideo, started, callState, session.id, runConversationTurn]);
     const playSubtitle = useCallback(async (subtitle: SubtitleEntry) => {
         if (playingSubtitleId === subtitle.id) {
             stopAudio();

@@ -3230,9 +3230,10 @@ export function XiaohongshuApp({ onClose, onNotice: externalNotice, visible = tr
             <header className="xhs-profile-edit-header">
               <strong>小红书设置</strong>
               <button type="button" className="xhs-sheet-close-btn" onClick={() => setSettingsOpen(false)} aria-label="关闭">×</button>
-            </header><AppNotificationSetting app="xiaohongshu"/>
+            </header>
 
             <div className="xhs-profile-edit-body">
+              <AppNotificationSetting app="xiaohongshu" className="xhs-notice-setting" />
               <div className="xhs-profile-edit-field">
                 <span className="xhs-profile-edit-section-title">AVATAR <em>小红书头像</em></span>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

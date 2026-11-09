@@ -1,5 +1,4 @@
 "use client";
-import {AppNotificationBell,AppNotificationSetting} from "@/components/social/app-notifications";
 import {syncBilingualEdit} from "@/lib/bilingual-edit";
 import { useGenerationFeedback } from "@/components/generation-feedback";
 
@@ -473,7 +472,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
       <div className={styles.bar}>
         <button className={styles.back} onClick={goBack} aria-label="返回"><ArrowLeft size={24} /></button>
         {page === "home" && <img className={styles.logoMark} src="/images/theqoo-logo.png" alt="theqoo" />}
-        <span className={styles.brand}>{title}</span><AppNotificationBell app="theqoo"/><span className={styles.spacer} />
+        <span className={styles.brand}>{title}</span><span className={styles.spacer} />
         {page === "home" && <>
           <button className={styles.icon} disabled={busy} onClick={() => void refreshPosts()} aria-label="随机刷新并处理评论"><RefreshCw size={21} className={generationKind === "refresh" ? styles.refreshSpin : undefined} /></button>
           <button className={styles.icon} onClick={() => openEditor()} aria-label="发帖"><Pencil size={21} /></button>
@@ -548,7 +547,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
       </form>
     </>}
 
-    {page === "settings" && <main className={styles.content}><div className={styles.settingsList}><AppNotificationSetting app="theqoo"/>
+    {page === "settings" && <main className={styles.content}><div className={styles.settingsList}>
       <button onClick={() => setPage("my")}><Bookmark size={19} />{t("마이", "我的")}<ChevronRight size={17} /></button>
       <button onClick={() => setPage("translation")}><Languages size={19} />{t("번역 설정", "翻译设置")}<ChevronRight size={17} /></button>
       <button onClick={() => setPage("sources")}><ChevronRight size={19} />{t("연동 설정", "内容关联")}<ChevronRight size={17} /></button>

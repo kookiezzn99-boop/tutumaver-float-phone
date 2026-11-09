@@ -281,9 +281,6 @@ export async function buildSingleModulePayload(
     warnings.push(...built.warnings);
   }
   const payload: ModulePayload = { moduleId: dataModule.id, sources };
-  if (dataModule.critical && records === 0) {
-    warnings.push(`「${dataModule.label}」导出了 0 条记录——如果这台设备上有过这类数据，说明备份不完整，请勿依赖。`);
-  }
   return { payload, records, warnings };
 }
 
@@ -369,10 +366,6 @@ export async function createBackupBlob(moduleIds?: DataModuleId[], options: Back
       }
       collector.media.clear();
       moduleBytes += jsonBytes + mediaBytes;
-    }
-
-    if (dataModule.critical && moduleRecords === 0) {
-      warnings.push(`「${dataModule.label}」导出了 0 条记录——如果这台设备上有过这类数据，说明备份不完整，请勿依赖。`);
     }
 
     manifestModules.push({

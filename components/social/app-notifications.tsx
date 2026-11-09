@@ -1,5 +1,51 @@
-'use client';import {useEffect,useState} from 'react';import {isKvHydrated} from '@/lib/kv-db';import {Bell} from 'lucide-react';import {AppDialog} from './app-dialog';import {collectSocialNotices,processSocialNotices,loadSocialNotices,enableSocialNotice,readSocialNotice,socialNoticeText,SOCIAL_NOTICE_UPDATED,SOCIAL_APPS,type SocialApp} from '@/lib/social-notifications';import s from './social.module.css';
-export function SocialNotificationRuntime(){useEffect(()=>{const sync=()=>{if(isKvHydrated())processSocialNotices(collectSocialNotices());};sync();const timer=setInterval(sync,1500);return()=>clearInterval(timer);},[]);return null;}
-function useNotices(){const [state,setState]=useState(loadSocialNotices);useEffect(()=>{const sync=()=>setState(loadSocialNotices());window.addEventListener(SOCIAL_NOTICE_UPDATED,sync);return()=>window.removeEventListener(SOCIAL_NOTICE_UPDATED,sync);},[]);return state;}
-export function AppNotificationSetting({app}:{app:SocialApp}){const state=useNotices();return <div className={s.row}><span>新消息通知</span><button className={s.switch} role="switch" aria-label={SOCIAL_APPS[app]+'新消息通知'} aria-checked={state.enabled[app]===true} onClick={()=>enableSocialNotice(app,state.enabled[app]!==true)}><i/></button></div>;}
-export function AppNotificationBell({app}:{app:SocialApp}){const state=useNotices(),[open,setOpen]=useState(false),rows=state.notices.filter(n=>n.app===app);return <><button className={s.bell} aria-label={SOCIAL_APPS[app]+'互动通知'} onClick={()=>setOpen(true)}><Bell size={19}/>{rows.some(n=>!n.read)&&<i className={s.dot}/>}</button>{open&&<AppDialog title={SOCIAL_APPS[app]+' · 消息'} onClose={()=>setOpen(false)}><AppNotificationSetting app={app}/><p>开启后显示灵动岛或横幅；关闭仍保留站内红点。不发送真手机系统通知。</p>{rows.some(n=>!n.read)&&<div className={s.actions}><button onClick={()=>readSocialNotice(undefined,app)}>全部已读</button></div>}{rows.map(n=><button key={n.id} className={s.notice} onClick={()=>{readSocialNotice(n.id);setOpen(false);window.dispatchEvent(new CustomEvent('social-notification-open',{detail:n}));}}><span>{socialNoticeText(n)}{n.kind==='like'&&n.count>1?' · '+n.count+'条':''}<br/><small>{new Date(n.at).toLocaleString()}</small></span>{!n.read&&<i/>}</button>)}{!rows.length&&<p>暂无新互动</p>}</AppDialog>}</>;}
+"use client";
+
+import { useEffect, useState } from "react";
+import { isKvHydrated } from "@/lib/kv-db";
+import {
+    collectSocialNotices,
+    enableSocialNotice,
+    loadSocialNotices,
+    processSocialNotices,
+    SOCIAL_APPS,
+    SOCIAL_NOTICE_UPDATED,
+    type SocialApp,
+} from "@/lib/social-notifications";
+
+export function SocialNotificationRuntime() {
+    useEffect(() => {
+        const sync = () => { if (isKvHydrated()) processSocialNotices(collectSocialNotices()); };
+        sync();
+        const timer = window.setInterval(sync, 1500);
+        return () => window.clearInterval(timer);
+    }, []);
+    return null;
+}
+
+export function useSocialNotices() {
+    const [state, setState] = useState(loadSocialNotices);
+    useEffect(() => {
+        const sync = () => setState(loadSocialNotices());
+        window.addEventListener(SOCIAL_NOTICE_UPDATED, sync);
+        return () => window.removeEventListener(SOCIAL_NOTICE_UPDATED, sync);
+    }, []);
+    return state;
+}
+
+export function AppNotificationSetting({ app, className = "" }: { app: SocialApp; className?: string }) {
+    const state = useSocialNotices();
+    const checked = state.enabled[app] === true;
+    return (
+        <div className={`app-notice-setting ${className}`}>
+            <span>新消息通知</span>
+            <button
+                type="button"
+                className="app-notice-switch"
+                role="switch"
+                aria-label={`${SOCIAL_APPS[app]}新消息通知`}
+                aria-checked={checked}
+                onClick={() => enableSocialNotice(app, !checked)}
+            ><i /></button>
+        </div>
+    );
+}

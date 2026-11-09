@@ -52,3 +52,5 @@
 .city-friend-row small{display:block;font-size:10px;color:var(--city-muted);margin-top:3px}
 .city-app .city-friend-row>button{font-size:11px;padding:7px 10px;flex-shrink:0;background:var(--city-soft);border-radius:5px}
 .city-app .city-friend-row>button[aria-pressed=true]{color:var(--city-muted)}
+
+.city-notice-setting { min-height:42px; padding:0 1px 10px; border-bottom:1px solid #8882; font-size:inherit; --notice-accent:#5d6beb; }

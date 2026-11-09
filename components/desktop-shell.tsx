@@ -8,8 +8,11 @@ import {REVERSE_NAV} from "@/lib/reverse-phone-runtime";
 import {useAppBack} from "@/lib/back-navigation";
 import { PhoneLockScreen } from "./phone-lock-screen";
 import { NovelApp } from "./novel/novel-app";
+import { privateDesktopNotice, mergeDesktopNotice, type DesktopMessageNotice } from "@/lib/desktop-message-notice";
 import { isRingtoneSource } from "@/lib/ringtone-source";
-import { chatContactDisplayName, chatPokeDisplayName } from "@/lib/communication-display-name";
+import { chatContactDisplayName } from "@/lib/communication-display-name";
+import { resolveChatCharacterAvatar } from "@/lib/chat-profile-storage";
+import { SOCIAL_APPS, type SocialNotice } from "@/lib/social-notifications";
 
 import { RelationshipSuggestionPrompt } from "./character/relationship-suggestion-prompt";
 import { Component, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
@@ -1096,6 +1099,20 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [notice, setNotice] = useState<string | null>(null);
   const reverseVisitState=useReverseVisit();
   const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
+  useEffect(()=>{let cancelled=false,navRevision=0;const timers:ReturnType<typeof setTimeout>[]=[];const fn=(event:Event)=>{const d=(event as CustomEvent).detail||{};if(d.scroll){const root=document.querySelector('[data-active-app]');const targets=Array.from(root?.querySelectorAll<HTMLElement>('*')||[]).filter(e=>e.getClientRects().length&&e.scrollHeight>e.clientHeight+30&&['auto','scroll'].includes(getComputedStyle(e).overflowY));const target=targets.sort((a,b)=>b.clientHeight-a.clientHeight)[0];target?.scrollBy({top:d.scroll*target.clientHeight*.65,behavior:'smooth'});return;}
+    if(!d.app)return;const revision=++navRevision;const app=d.app as DesktopIconId;const keys=Object.keys(layoutRef.current);let folderId:string|undefined;let pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===app));
+    if(pageIndex<0){folderId=Object.keys(foldersRef.current).find(id=>foldersRef.current[id].icons.includes(app));if(folderId)pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===folderId));}
+    if(app==='chat')setChatInitSessionId(d.view==='thread'&&typeof d.sessionId==='string'?d.sessionId:null);
+    const currentApp=shellRef.current?.dataset.activeApp;if(currentApp===app){setReversePageIntent(d);return;}
+    setActiveApp(null);setOpenFolderId(null);if(pageIndex>=0)setCurrentPageIndex(pageIndex);
+    if(folderId)timers.push(setTimeout(()=>{if(!cancelled&&revision===navRevision)setOpenFolderId(folderId!);},160));
+    timers.push(setTimeout(()=>{if(cancelled||revision!==navRevision)return;setOpenFolderId(null);setReversePageIntent(d);setActiveApp(app);timers.push(setTimeout(()=>{if(revision===navRevision)setReversePageIntent(null);},1500));},folderId?420:220));
+  };window.addEventListener(REVERSE_NAV,fn);return()=>{cancelled=true;timers.forEach(clearTimeout);window.removeEventListener(REVERSE_NAV,fn);};},[]);
+
+  useAppBack(()=>{if(openFolderId)setOpenFolderId(null);else setActiveApp(null);},()=>!!activeApp||!!openFolderId,1);
+  const notificationMusic = useMusicControlsOptional();
+  const [chatVisited,setChatVisited]=useState(false),[wvsVisited,setWvsVisited]=useState(false);
+  useEffect(()=>{if(activeApp==='chat')setChatVisited(true);if(activeApp==='weverse')setWvsVisited(true);window.dispatchEvent(new CustomEvent('rabbit-app-visibility',{detail:activeApp}));},[activeApp]);
   const [chatLiveToOpen, setChatLiveToOpen] = useState<string | null>(null);
   useEffect(() => {
     const open = (event: Event) => {
@@ -1112,20 +1129,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     window.dispatchEvent(new CustomEvent("wvs-open-live", { detail: chatLiveToOpen }));
     setChatLiveToOpen(null);
   }, [activeApp, chatLiveToOpen]);
-
-  useEffect(()=>{let cancelled=false,navRevision=0;const timers:ReturnType<typeof setTimeout>[]=[];const fn=(event:Event)=>{const d=(event as CustomEvent).detail||{};if(d.scroll){const root=document.querySelector('[data-active-app]');const targets=Array.from(root?.querySelectorAll<HTMLElement>('*')||[]).filter(e=>e.getClientRects().length&&e.scrollHeight>e.clientHeight+30&&['auto','scroll'].includes(getComputedStyle(e).overflowY));const target=targets.sort((a,b)=>b.clientHeight-a.clientHeight)[0];target?.scrollBy({top:d.scroll*target.clientHeight*.65,behavior:'smooth'});return;}
-    if(!d.app)return;const revision=++navRevision;const app=d.app as DesktopIconId;const keys=Object.keys(layoutRef.current);let folderId:string|undefined;let pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===app));
-    if(pageIndex<0){folderId=Object.keys(foldersRef.current).find(id=>foldersRef.current[id].icons.includes(app));if(folderId)pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===folderId));}
-    if(app==='chat')setChatInitSessionId(d.view==='thread'&&typeof d.sessionId==='string'?d.sessionId:null);
-    const currentApp=shellRef.current?.dataset.activeApp;if(currentApp===app){setReversePageIntent(d);return;}
-    setActiveApp(null);setOpenFolderId(null);if(pageIndex>=0)setCurrentPageIndex(pageIndex);
-    if(folderId)timers.push(setTimeout(()=>{if(!cancelled&&revision===navRevision)setOpenFolderId(folderId!);},160));
-    timers.push(setTimeout(()=>{if(cancelled||revision!==navRevision)return;setOpenFolderId(null);setReversePageIntent(d);setActiveApp(app);timers.push(setTimeout(()=>{if(revision===navRevision)setReversePageIntent(null);},1500));},folderId?420:220));
-  };window.addEventListener(REVERSE_NAV,fn);return()=>{cancelled=true;timers.forEach(clearTimeout);window.removeEventListener(REVERSE_NAV,fn);};},[]);
-
-  useAppBack(()=>{if(openFolderId)setOpenFolderId(null);else setActiveApp(null);},()=>!!activeApp||!!openFolderId,1);
-  const [chatVisited,setChatVisited]=useState(false),[wvsVisited,setWvsVisited]=useState(false);
-  useEffect(()=>{if(activeApp==='chat')setChatVisited(true);if(activeApp==='weverse')setWvsVisited(true);window.dispatchEvent(new CustomEvent('rabbit-app-visibility',{detail:activeApp}));},[activeApp]);
 
   useEffect(() => {
     const timer = window.setInterval(() => { void maybeGenerateLysnBackgroundMessage(); void maybeGenerateSmsBackgroundMessage(); }, 60_000);
@@ -1191,14 +1194,15 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   // 来电优先使用 Phone 设置里的铃声 URL，留空沿用 Chat 的来电音。
   useEffect(() => {
     if (!incomingCall) return;
-    const url = loadPhoneState().ringtoneUrl?.trim();
+    const isPhone = incomingCall.type === "phone" || incomingCall.source === "sms";
+    const url = isPhone ? loadPhoneState().ringtoneUrl?.trim() : "";
     let stopRingtone: () => void = () => undefined;
     if (url && isRingtoneSource(url)) {
       const audio = new Audio(url);
       audio.loop = true;
       audio.play().catch(() => undefined);
       stopRingtone = () => { audio.pause(); audio.currentTime = 0; };
-    } else stopRingtone = startChatSoundLoop("incomingCall", findChatSessionById(incomingCall.sessionId));
+    } else if (!isPhone) stopRingtone = startChatSoundLoop("incomingCall", findChatSessionById(incomingCall.sessionId));
     const stopVibration = startIncomingCallVibration();
     const missedTimer = window.setTimeout(() => {
       discardPhoneOpening(incomingCall.sessionId);
@@ -1220,15 +1224,11 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   }, [incomingCall]);
   // 全局聊天提示音（新消息/发送消息）：监听消息落库事件，按各会话配置播放（角色专属优先于全局）
   useEffect(() => installChatSoundListener(), []);
-  const [chatMessageNotice, setChatMessageNotice] = useState<{
-    sessionId: string;
-    title: string;
-    body: string;
-    avatar: string | null;
-    isGroup?: boolean;
-  } | null>(null);
-  const islandNoticeQueueRef = useRef<Array<{sessionId: string; title: string; body: string; avatar: string | null; isGroup?: boolean}>>([]);
-  const islandCurrentNoticeRef = useRef<{sessionId: string; title: string; body: string; avatar: string | null; isGroup?: boolean} | null>(null);
+  const [chatMessageNotice, setChatMessageNotice] = useState<DesktopMessageNotice | null>(null);
+  const islandNoticeQueueRef = useRef<DesktopMessageNotice[]>([]);
+  const islandCurrentNoticeRef = useRef<DesktopMessageNotice | null>(null);
+  const [noticePhase, setNoticePhase] = useState<"banner" | "collapsing" | "island">("banner");
+  const noticeBannerRef = useRef<HTMLButtonElement>(null);
   const [islandExpanded, setIslandExpanded] = useState(false);
   const [smsUnreadCount, setSmsUnreadCount] = useState(0);
   const [phoneMissedCount, setPhoneMissedCount] = useState(0);
@@ -1238,22 +1238,69 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [activeChatCall, setActiveChatCall] = useState<{ sessionId: string; type: "voice" | "video"; phase: "ringing" | "connected" } | null>(null);
   const [islandCallSeconds, setIslandCallSeconds] = useState(0);
   useEffect(() => { if (incomingCall) setIslandExpanded(true); }, [incomingCall]);
-  const enqueueIslandNotice = useCallback((notice: {sessionId: string; title: string; body: string; avatar: string | null; isGroup?: boolean}) => {
-    if (islandCurrentNoticeRef.current) islandNoticeQueueRef.current.push(notice);
-    else { islandCurrentNoticeRef.current = notice; setChatMessageNotice(notice); }
+  const enqueueIslandNotice = useCallback((raw: DesktopMessageNotice) => {
+    const notice = privateDesktopNotice(raw);
+    const current = islandCurrentNoticeRef.current;
+    if (current?.sessionId === notice.sessionId) {
+      const merged = mergeDesktopNotice(current, notice);
+      islandCurrentNoticeRef.current = merged;
+      setChatMessageNotice(merged);
+      setNoticePhase("banner");
+    } else if (current) {
+      const queue = islandNoticeQueueRef.current;
+      const index = queue.findIndex(item => item.sessionId === notice.sessionId);
+      if (index >= 0) queue[index] = mergeDesktopNotice(queue[index], notice);
+      else queue.push(notice);
+      if (queue.length > 30) queue.shift();
+      // A compact notice yields immediately to a newly arrived message.
+      if (noticePhaseRef.current === "island") {
+        const next = queue.shift()!;
+        islandCurrentNoticeRef.current = next;
+        setChatMessageNotice(next);
+        setNoticePhase("banner");
+      }
+    } else {
+      islandCurrentNoticeRef.current = notice;
+      setChatMessageNotice(notice);
+      setNoticePhase("banner");
+    }
     if (!incomingCall) setIslandExpanded(false);
   }, [incomingCall]);
+  const noticePhaseRef = useRef(noticePhase);
+  noticePhaseRef.current = noticePhase;
   const dismissIslandNotice = useCallback(() => {
     const next = islandNoticeQueueRef.current.shift() || null;
     islandCurrentNoticeRef.current = next;
     setChatMessageNotice(next);
+    setNoticePhase("banner");
+    setIslandExpanded(false);
+  }, []);
+  useEffect(() => {
+    if (!activeApp || activeApp === "phone") return;
+    islandNoticeQueueRef.current = islandNoticeQueueRef.current.filter(notice => notice.app !== activeApp);
+    if (islandCurrentNoticeRef.current?.app === activeApp) dismissIslandNotice();
+  }, [activeApp, dismissIslandNotice]);
+  const collapseMessageNotice = useCallback(() => {
+    setNoticePhase("collapsing");
     setIslandExpanded(false);
   }, []);
   useEffect(() => {
     if (!chatMessageNotice || incomingCall) return;
-    const timer = window.setTimeout(dismissIslandNotice, 6000);
+    const timeout = noticePhase === "banner" ? 4000 : noticePhase === "collapsing" ? 260 : 2200;
+    const timer = window.setTimeout(() => {
+      if (noticePhase === "banner") collapseMessageNotice();
+      else if (noticePhase === "collapsing") {
+        if (noticeBannerRef.current?.dataset.noIsland === "true") dismissIslandNotice();
+        else setNoticePhase("island");
+      }
+      else if (islandNoticeQueueRef.current.length) dismissIslandNotice();
+    }, timeout);
     return () => window.clearTimeout(timer);
-  }, [chatMessageNotice, incomingCall, dismissIslandNotice]);
+  }, [chatMessageNotice, incomingCall, noticePhase, collapseMessageNotice, dismissIslandNotice]);
+  useEffect(() => {
+    noticeDragRef.current = { startY: 0, dy: 0, dragging: false, far: false };
+    setNoticeDragY(0);
+  }, [chatMessageNotice]);
   useEffect(() => {
     if (!activePhoneCall) return;
     const update = () => setIslandCallSeconds(Math.floor((Date.now() - activePhoneCall.connectedAt) / 1000));
@@ -1276,8 +1323,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       const { message, thread } = (event as CustomEvent<{message: SmsMessage; thread: SmsThread}>).detail || {};
       if (!message || !thread || activeSmsThreadRef.current === thread.id) return;
       const character = loadCharacters().find(item => item.id === thread.characterId);
-      enqueueIslandNotice({ sessionId: `sms:${thread.id}`, title: smsContactDisplayName(thread.characterId, character?.name || thread.characterNumber || "短信"), body: message.original, avatar: character?.avatar || null });
-      sendBrowserNotification(smsContactDisplayName(thread.characterId, character?.name || "短信"), {body:message.original.slice(0,90),url:`/#sms=${encodeURIComponent(thread.id)}`,independent:true});
+      if (activeApp !== "sms") {
+        enqueueIslandNotice({ sessionId: `sms:${thread.id}`, title: smsContactDisplayName(thread.characterId, character?.name || thread.characterNumber || "短信"), body: "短信", avatar: character?.avatar || null });
+      }
+      sendBrowserNotification(smsContactDisplayName(thread.characterId, character?.name || "短信"), {body:"有新的短信",url:`/#sms=${encodeURIComponent(thread.id)}`,independent:true});
       const url = loadSms().ringtoneUrl?.trim();
       if (url && isRingtoneSource(url)) { const audio = new Audio(url); void audio.play().catch(() => undefined); }
     };
@@ -1297,7 +1346,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       window.removeEventListener("sms-active-thread", onActiveSms); window.removeEventListener("phone-call-state", onPhoneCall); window.removeEventListener("chat-call-state", onChatCall);
       window.removeEventListener("phone-missed-notice", onMissed);
     };
-  }, [enqueueIslandNotice]);
+  }, [activeApp, enqueueIslandNotice]);
   // Swipe-up-to-dismiss state for the chat message notice banner.
   const [noticeDragY, setNoticeDragY] = useState(0);
   const noticeDragRef = useRef({ startY: 0, dy: 0, dragging: false, far: false });
@@ -1561,6 +1610,15 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   foldersRef.current = folders;
 
   const activeIconSkins = useMemo(() => resolveActiveIconSkins(draftTheme), [draftTheme]);
+  const renderNoticeIcon = (notice: DesktopMessageNotice, className: string) => {
+    const app = notice.app;
+    const useAppIcon = app && app !== "chat" && app !== "phone";
+    const skinId = useAppIcon ? activeIconSkins[app] : undefined;
+    const image = useAppIcon ? (skinId && themeAssets[skinId]) : notice.avatar;
+    if (image) return <img src={image} alt="" className={className} />;
+    if (useAppIcon) return <span className={`${className} notice-app-icon`} aria-hidden="true"><IconGlyph id={app} /></span>;
+    return <span className={`${className} chat-message-notice-avatar-fallback`} aria-hidden="true">{notice.title[0] || "消"}</span>;
+  };
   const themeAssetKey = useMemo(() => collectThemeAssetIds(draftTheme).sort().join("|"), [draftTheme]);
   const wallpaperDataUrl = draftTheme.wallpaperAssetId ? themeAssets[draftTheme.wallpaperAssetId] ?? null : null;
   const fontDataUrl = draftTheme.fontAssetId ? themeAssets[draftTheme.fontAssetId] ?? null : null;
@@ -1992,7 +2050,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       // 离线推送回端合并：拉取服务端兜底生成的消息并落进聊天记录
       void import("@/lib/push-outbox-client").then(m => m.installServerOutboxConsumer()).catch(() => undefined);
       // 现实桥离线联动：规则/快照同步器（规则变更、切后台时刷新服务端快照）
-      void import("@/lib/screen-chat-sync").then(m => m.installScreenChatSync()).catch(() => undefined);
       // 定时唤醒/经期关怀兜底：切后台时刷新快照预约
       void import("@/lib/push-bailout-client").then(m => m.installScheduledBailoutRefresher()).catch(() => undefined);
     })();
@@ -2634,18 +2691,22 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     if (!drag.dragging) return;
     drag.dragging = false;
     if (drag.dy < -44) {
-      setNoticeDragY(-220); // slide away, then unmount
-      window.setTimeout(dismissIslandNotice, 170);
+      setNoticeDragY(0);
+      collapseMessageNotice();
     } else {
       setNoticeDragY(0);
     }
-  }, [dismissIslandNotice]);
+  }, [collapseMessageNotice]);
 
   useEffect(()=>{const fn=(e:Event)=>{const id=(e as CustomEvent<{sessionId:string}>).detail?.sessionId;if(!id)return;setActiveApp("chat");setChatInitSessionId(id);window.setTimeout(()=>window.dispatchEvent(new CustomEvent(CHAT_OPEN_SESSION_EVENT,{detail:{sessionId:id}})),30);};window.addEventListener("rabbit-restore-call",fn);return()=>window.removeEventListener("rabbit-restore-call",fn);},[]);
   useEffect(()=>{const fn=(e:Event)=>{const url=(e as CustomEvent<string>).detail;if(url.startsWith('/#sms=')){setSmsOpenThreadId(decodeURIComponent(url.slice(7)));setActiveApp('sms');}else if(url.startsWith('/#phone'))setActiveApp('phone');else setActiveApp('chat');};window.addEventListener('rabbit-notification-open',fn);return()=>window.removeEventListener('rabbit-notification-open',fn);},[]);
   const handleNoticeClick = useCallback(() => {
     if (noticeDragRef.current.far) { noticeDragRef.current.far = false; return; }
-    if(chatMessageNotice?.sessionId.startsWith('social:')){const notice=JSON.parse(chatMessageNotice.sessionId.slice(7));dismissIslandNotice();setActiveApp(notice.app);window.setTimeout(()=>window.dispatchEvent(new CustomEvent('social-notification-open',{detail:notice})),150);
+    if (chatMessageNotice?.social) {
+      const notice = chatMessageNotice.social;
+      dismissIslandNotice();
+      setActiveApp(notice.app);
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent("social-notification-open", { detail: notice })), 150);
     } else if (chatMessageNotice?.sessionId.startsWith("lysn:")) {
       const characterId = chatMessageNotice.sessionId.slice(5);
       dismissIslandNotice();
@@ -2660,16 +2721,25 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       dismissIslandNotice();
     } else if (chatMessageNotice) openChatSessionFromNotice(chatMessageNotice.sessionId);
   }, [chatMessageNotice, openChatSessionFromNotice, dismissIslandNotice]);
-  useEffect(()=>{const fn=(e:Event)=>{const n=(e as CustomEvent).detail;if(!n?.app)return;enqueueIslandNotice({sessionId:'social:'+JSON.stringify(n),title:n.title,body:'点击查看',avatar:null});};window.addEventListener('social-message-notice',fn);return()=>window.removeEventListener('social-message-notice',fn);},[enqueueIslandNotice]);
+  useEffect(() => {
+    const onSocialMessage = (event: Event) => {
+      const notice = (event as CustomEvent<SocialNotice>).detail;
+      if (!notice?.app || notice.app === activeApp) return;
+      const title = notice.app === "diary" ? "icity" : notice.app === "weverse" ? "WVS" : SOCIAL_APPS[notice.app];
+      enqueueIslandNotice({ sessionId: `social:${notice.app}`, app: notice.app, title, body: "", avatar: null, social: notice, count: notice.count });
+    };
+    window.addEventListener("social-message-notice", onSocialMessage);
+    return () => window.removeEventListener("social-message-notice", onSocialMessage);
+  }, [activeApp, enqueueIslandNotice]);
   useEffect(() => {
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ characterId: string; title: string; body: string }>).detail;
-      if (!detail?.characterId) return;
-      enqueueIslandNotice({ sessionId: `lysn:${detail.characterId}`, title: detail.title, body: detail.body, avatar: null, isGroup: false });
+      const detail = (event as CustomEvent<{ characterId: string; name: string }>).detail;
+      if (!detail?.characterId || activeApp === "lysn") return;
+      enqueueIslandNotice({ sessionId: `lysn:${detail.characterId}`, title: detail.name || "艺人", body: "", avatar: null });
     };
     window.addEventListener("lysn-message-notice", handler);
     return () => window.removeEventListener("lysn-message-notice", handler);
-  }, [enqueueIslandNotice]);
+  }, [activeApp, enqueueIslandNotice]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2688,18 +2758,15 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       const chars = loadCharacters();
       const isGroup = detail.isGroup ?? !!session.isGroup;
       const char = !isGroup ? chars.find(c => c.id === session.contactId) : null;
-      const detailSenderName = detail.senderName?.trim();
-      const title = isGroup
-        ? (detailSenderName && detailSenderName !== "对方" ? chatPokeDisplayName(detailSenderName) : session.groupName || "群聊")
-        : chatContactDisplayName(session.contactId, session);
+      const title = isGroup ? session.groupName || "群聊" : chatContactDisplayName(session.contactId, session);
 
       noticeDragRef.current = { startY: 0, dy: 0, dragging: false, far: false };
       setNoticeDragY(0);
       enqueueIslandNotice({
         sessionId: detail.sessionId,
         title,
-        body: detail.body.trim(),
-        avatar: detail.avatar ?? char?.avatar ?? null,
+        body: "Chat",
+        avatar: isGroup ? session.groupAvatar || null : resolveChatCharacterAvatar(char) || detail.avatar || null,
         isGroup,
       });
     };
@@ -4316,23 +4383,28 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
 
               <header className="phone-status-bar">
                 <StatusClock />
-                {reverseVisitState && !draftTheme.hideTopBar && draftTheme.cssOverrides["--status-island-visibility"]!=="hidden" ? <ReversePhoneStatus/> : incomingCall || activePhoneCall || activeChatCall || chatMessageNotice ? <button
+                {reverseVisitState && !draftTheme.hideTopBar && draftTheme.cssOverrides["--status-island-visibility"]!=="hidden" ? <ReversePhoneStatus/> : incomingCall || activePhoneCall || activeChatCall || (chatMessageNotice && !notificationMusic?.isPlaying) ? <button
                   type="button"
-                  className="status-island status-island-active"
+                  className={`status-island status-island-active${!incomingCall && !activePhoneCall && !activeChatCall && chatMessageNotice?.app !== "phone" ? " status-island-message" : ""}`}
                   aria-label={incomingCall ? `来电：${incomingCall.charName}` : activePhoneCall || activeChatCall ? "返回通话" : `新消息：${chatMessageNotice?.title}`}
                   onClick={() => {
                     if (incomingCall) { setIslandExpanded(value => !value); return; }
                     if (activePhoneCall) { setActiveApp("phone"); return; }
                     if (activeChatCall) { setActiveApp("chat"); setChatInitSessionId(activeChatCall.sessionId); return; }
-                    if (chatMessageNotice) setIslandExpanded(value => !value);
+                    if (chatMessageNotice) { setNoticePhase("banner"); setIslandExpanded(false); }
                   }}
                 >
                   {incomingCall ? <span className="status-island-content"><span className="status-island-dot" />{incomingCall.charName}来电</span>
                     : activePhoneCall ? <span className="status-island-content"><span className="status-island-dot" />{smsContactDisplayName(activePhoneCall.characterId, loadCharacters().find(item => item.id === activePhoneCall.characterId)?.name || "联系人")} <span className="status-island-end">{Math.floor(islandCallSeconds / 60).toString().padStart(2, "0")}:{(islandCallSeconds % 60).toString().padStart(2, "0")}</span></span>
                     : activeChatCall ? <span className="status-island-content"><span className="status-island-dot" />{(() => { const session = findChatSessionById(activeChatCall.sessionId); return session?.isGroup ? session.groupName || "群聊" : session ? chatContactDisplayName(session.contactId, session) : "Chat"; })()} {activeChatCall.type === "video" ? "视频" : "语音"}{activeChatCall.phase === "ringing" ? "呼叫中" : "通话中"}</span>
-                    : chatMessageNotice ? <span className="status-island-content"><span className="status-island-dot" />{chatMessageNotice.title}<span className="status-island-end">消息</span></span>
+                    : chatMessageNotice?.app === "phone" ? <span className="status-island-content"><span className="status-island-dot" />{chatMessageNotice.title}<span className="status-island-end">{(chatMessageNotice.count || 1) > 1 ? chatMessageNotice.count : ""}</span></span>
+                    : chatMessageNotice ? <span className="status-island-content">
+                      {renderNoticeIcon(chatMessageNotice, "status-island-message-icon")}
+                      <span className="status-island-message-label">{chatMessageNotice.app === "chat" ? chatMessageNotice.title : `${chatMessageNotice.app === "sms" ? "短信" : chatMessageNotice.app === "lysn" ? "LYSN" : chatMessageNotice.title}新提示`}</span>
+                    </span>
                     : null}
-                </button>: <MusicIsland onOpen={() => { setActiveApp("music"); musicOverlayControllerRef.current?.openFullPlayer(); }} />}
+                </button> : <MusicIsland onOpen={() => { setActiveApp("music"); musicOverlayControllerRef.current?.openFullPlayer(); }} />}
+                {chatMessageNotice && !incomingCall && (activePhoneCall || activeChatCall || reverseVisitState || notificationMusic?.isPlaying) ? <button className="status-message-pending" aria-label={chatMessageNotice.title} onClick={() => setNoticePhase("banner")}>●{(chatMessageNotice.count || 1) > 1 ? chatMessageNotice.count : ""}</button> : null}
                 <div className="status-right" aria-hidden>
                   <svg viewBox="0 0 72 51" className="status-signal" fill="currentColor">
                     <path d="M11.6,41.9c0,1.4,0,2.8,0,4.3c0,2.3-1.4,3.7-3.6,3.8c-1.5,0.1-3,0.1-4.4,0c-1.9-0.1-3.2-1.2-3.4-3c-0.3-3.4-0.2-6.8,0-10.1c0.1-1.8,1.5-3,3.3-3.1c1.5-0.1,3-0.1,4.4,0c2.2,0.1,3.6,1.5,3.7,3.8C11.6,39,11.6,40.5,11.6,41.9z" />
@@ -4570,37 +4642,35 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                 </div>
               )}
 
-              {chatMessageNotice && !incomingCall && (islandExpanded || draftTheme.hideTopBar || draftTheme.cssOverrides["--status-island-visibility"]==="hidden") ? (
+              {chatMessageNotice && !incomingCall && noticePhase !== "island" ? (
                 <button
                   type="button"
+                  ref={noticeBannerRef}
                   className="chat-message-notice-bar"
+                  data-phase={noticePhase}
+                  data-notice-app={chatMessageNotice.app}
+                  data-no-island={draftTheme.hideTopBar || draftTheme.cssOverrides["--status-island-visibility"] === "hidden" ? "true" : undefined}
                   style={{
                     transform: noticeDragY ? `translateY(${noticeDragY}px)` : undefined,
                     opacity: noticeDragY < 0 ? Math.max(0, 1 + noticeDragY / 160) : 1,
                     transition: noticeDragRef.current.dragging ? "none" : "transform 180ms ease, opacity 180ms ease",
                     touchAction: "none",
-                  }}
+                  } as CSSProperties}
                   onPointerDown={handleNoticePointerDown}
                   onPointerMove={handleNoticePointerMove}
                   onPointerUp={handleNoticePointerUp}
                   onPointerCancel={handleNoticePointerUp}
                   onClick={handleNoticeClick}
-                  aria-label={`查看 ${chatMessageNotice.title} 的新消息`}
+                  aria-label={`查看通知：${chatMessageNotice.title}`}
                 >
                   <div className="chat-message-notice-info">
-                    {chatMessageNotice.avatar ? (
-                      <img src={chatMessageNotice.avatar} alt="" className="chat-message-notice-avatar" />
-                    ) : (
-                      <span className="chat-message-notice-avatar chat-message-notice-avatar-fallback">
-                        {chatMessageNotice.title[0] || "消"}
-                      </span>
-                    )}
-                    <div className="chat-message-notice-text">
+                    {renderNoticeIcon(chatMessageNotice, "chat-message-notice-avatar")}
+                    {chatMessageNotice.app === "phone" ? <div className="chat-message-notice-text">
                       <span className="chat-message-notice-name">{chatMessageNotice.title}</span>
-                      <span className="chat-message-notice-body">{chatMessageNotice.body}</span>
-                    </div>
+                      <span className="chat-message-notice-body">{chatMessageNotice.body}{(chatMessageNotice.count || 1) > 1 ? ` · ${chatMessageNotice.count} 条新通知` : ""}</span>
+                    </div> : <span className="chat-message-notice-name">{chatMessageNotice.count || 1}条·{chatMessageNotice.body}</span>}
                   </div>
-                  <span className="chat-message-notice-action">查看</span>
+                  {chatMessageNotice.app === "phone" ? <span className="chat-message-notice-action">查看</span> : <span className="chat-message-notice-time">现在</span>}
                 </button>
               ) : null}
 

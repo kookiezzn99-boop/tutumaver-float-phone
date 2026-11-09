@@ -64,6 +64,7 @@ export function CalendarMonthPage({
   cycleMap,
   ownerStrip,
   onPickDay,
+  onSwipeOwner,
   onClose,
   onOpenTheme,
   headerActions,
@@ -73,6 +74,7 @@ export function CalendarMonthPage({
   cycleMap: Map<string, MenstrualDayState> | null;
   ownerStrip: ReactNode;
   onPickDay: (iso: string) => void;
+  onSwipeOwner: (direction: -1 | 1) => void;
   onClose: () => void;
   onOpenTheme: () => void;
   headerActions?: ReactNode;
@@ -89,6 +91,8 @@ export function CalendarMonthPage({
   const headerHRef = useRef(0);
   headerHRef.current = headerH;
   const tickingRef = useRef(false);
+  const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
+  const suppressClickUntil = useRef(0);
 
   // 顶部玻璃悬浮层高度 → 滚动区 padding-top
   useEffect(() => {
@@ -142,7 +146,38 @@ export function CalendarMonthPage({
 
   return (
     <div className="calendar-page calendar-page-month">
-      <div className="calendar-month-scroll hide-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ paddingTop: headerH }}>
+      <div
+        className="calendar-month-scroll hide-scrollbar"
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{ paddingTop: headerH, touchAction: "pan-y pinch-zoom" }}
+        onTouchStart={event => {
+          suppressClickUntil.current = 0;
+          const touch = event.touches.length === 1 ? event.touches[0] : null;
+          swipeStart.current = touch && (event.target as Element).closest(".calendar-month-week")
+            ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+            : null;
+        }}
+        onTouchCancel={() => { swipeStart.current = null; }}
+        onTouchEnd={event => {
+          const start = swipeStart.current;
+          swipeStart.current = null;
+          if (!start || event.touches.length) return;
+          const touch = Array.from(event.changedTouches).find(item => item.identifier === start.id);
+          if (!touch) return;
+          const dx = touch.clientX - start.x;
+          const dy = touch.clientY - start.y;
+          if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+          suppressClickUntil.current = performance.now() + 350;
+          onSwipeOwner(dx < 0 ? 1 : -1);
+        }}
+        onClickCapture={event => {
+          if (performance.now() >= suppressClickUntil.current) return;
+          suppressClickUntil.current = 0;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
         {months.map(block => (
           <div key={block.ym} className="calendar-month-block" data-ym={block.ym}>
             <div

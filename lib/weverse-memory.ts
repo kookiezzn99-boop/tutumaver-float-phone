@@ -1,6 +1,9 @@
 import { kvGet, kvKeysWithPrefix, kvRemove, kvSet, registerDynamicPrefix } from "./kv-db";
 import { revokeMemorySources } from "./memory-event-meta";
 import { formatChatTimestamp } from "./llm-prompt-assembler";
+import { loadCharacters } from "./character-storage";
+import { resolveUserIdentity } from "./settings-storage";
+import { buildWeverseLiveMemory } from "./weverse-live-memory";
 
 const WEV_EVENT_PREFIX = "ai_phone_weverse_events_";
 const MAX_EVENTS_PER_CHARACTER = 120;
@@ -75,7 +78,7 @@ export function recordWeverseArtistPostEvent(input: {
     id: `weverse_post_${input.postId}`,
     postId: input.postId,
     timestamp,
-    content: `[Weverse ${formatChatTimestamp(timestamp)}] ${name}在「${community}」Community 发布了 Artist Post${body ? `：“${body}”` : ""}${input.hasPhoto ? "，并附带了一张照片" : ""}。`,
+    content: `[Weverse ${formatChatTimestamp(timestamp)}] ${name}在 WVS 的「${community}」社区发了艺人动态${body ? `：“${body}”` : ""}${input.hasPhoto ? "，并附带了一张照片" : ""}。`,
   });
 }
 
@@ -127,79 +130,44 @@ export function deleteWeverseProjectionEventsForPost(postId: string): void {
 }
 
 export function loadWeverseProjectionEntries(characterId: string, options?: { afterTimestamp?: string }): WeverseProjectionEntry[] {
-  let raw: { lives?: Array<{ id: string; participantPresence?: Array<{ characterId: string; joinedAt?: number; leftAt?: number }> }> } = {};
+  type Live = Parameters<typeof buildWeverseLiveMemory>[0];
+  let raw: { lives?: Live[]; communities?: Array<{ id: string; name: string; memberProfiles?: Record<string, { displayName?: string }> }> } = {};
   try { raw = JSON.parse(kvGet("ai_phone_weverse_state_v1") || "{}"); } catch {}
-  const entries = loadEventsByKey(storageKey(characterId)).map(entry => {
-    const live = raw.lives?.find(l => entry.id === `weverse_live_participant_${l.id}_${characterId}` || entry.id === `weverse_live_viewer_${l.id}_${characterId}`);
-    if (live) return { ...entry, sourceKeys: [`wvs:${live.id}`], shared: entry.id.startsWith("weverse_live_participant_") && Boolean(live.participantPresence?.some(a => a.characterId === characterId && live.participantPresence?.some(b => b.characterId !== characterId && (a.joinedAt ?? 0) <= (b.leftAt ?? Infinity) && (b.joinedAt ?? 0) <= (a.leftAt ?? Infinity)))) };
-    if (/^weverse_live_(participant|viewer)_/.test(entry.id)) return null;
-    return entry;
-  }).filter((entry): entry is WeverseProjectionEntry => entry !== null);
-  if (!options?.afterTimestamp) return entries;
-  return entries.filter((entry) => entry.timestamp > options.afterTimestamp!);
-}
-
-export function recordWeverseLiveParticipationEvent(input: {
-  liveId: string;
-  characterId: string;
-  characterName: string;
-  communityName: string;
-  startedAt: number;
-  endedAt?: number;
-  role: "host" | "guest";
-  coParticipants?: string[];
-  ownSpeech?: string[];
-  title?: string;
-}): void {
-  const timestamp = new Date(input.endedAt || input.startedAt || Date.now()).toISOString();
-  const name = cleanText(input.characterName, 80) || "角色";
-  const community = cleanText(input.communityName, 80) || "Community";
-  const others = (input.coParticipants || []).map((item) => cleanText(item, 60)).filter(Boolean).slice(0, 5);
-  const speech = (input.ownSpeech || []).map((item) => cleanText(item, 130)).filter(Boolean).slice(-3);
-  const pieces = [
-    `[Weverse Live ${formatChatTimestamp(timestamp)}] ${name}${input.role === "host" ? "开了" : "中途加入了"}「${community}」Community 的一场 Live${input.title ? `（${cleanText(input.title, 100)}）` : ""}`,
-    others.length ? `，同场还有${others.join("、")}` : "",
-    speech.length ? `。期间自己说过：${speech.map((item) => `“${item}”`).join("、")}` : "",
-    "。",
-  ];
-  upsert(input.characterId, {
-    id: `weverse_live_participant_${input.liveId}_${input.characterId}`,
-    timestamp,
-    content: pieces.join(""),
+  const lives = Array.isArray(raw.lives) ? raw.lives : [];
+  const communities = Array.isArray(raw.communities) ? raw.communities : [];
+  const entries = loadEventsByKey(storageKey(characterId)).flatMap(entry => {
+    if (entry.id.startsWith("weverse_post_")) {
+      return [{ ...entry, content: entry.content.replace(/在「([^」]*)」Community 发布了 Artist Post/, "在 WVS 的「$1」社区发了艺人动态") }];
+    }
+    if (!/^weverse_live_(participant|viewer|replay)_/.test(entry.id)) return [entry];
+    if (!entry.id.startsWith("weverse_live_replay_") && !entry.content.startsWith("[Weverse 回放观看]")) return [];
+    const live = lives.find(row => entry.id === `weverse_live_replay_${row.id}_${characterId}` || entry.id === `weverse_live_viewer_${row.id}_${characterId}`);
+    return live ? [{ ...entry, sourceKeys: [`wvs:${live.id}`], shared: false }] : [];
   });
-}
-
-export function recordWeverseLiveViewerEvent(input: {
-  liveId: string;
-  characterId: string;
-  characterName: string;
-  communityName: string;
-  hostNames: string[];
-  watchedAt: number;
-  comments?: string[];
-  title?: string;
-}): void {
-  const timestamp = new Date(input.watchedAt || Date.now()).toISOString();
-  const name = cleanText(input.characterName, 80) || "角色";
-  const hosts = input.hostNames.map((item) => cleanText(item, 60)).filter(Boolean).slice(0, 5);
-  const comments = (input.comments || []).map((item) => cleanText(item, 150)).filter(Boolean).slice(-3);
-  upsert(input.characterId, {
-    id: `weverse_live_viewer_${input.liveId}_${input.characterId}`,
-    timestamp,
-    content: `[Weverse Live ${formatChatTimestamp(timestamp)}] ${name}作为普通观众看过${hosts.length ? `${hosts.join("、")}的` : "一场"}「${cleanText(input.communityName, 80) || "Community"}」Live${input.title ? `（${cleanText(input.title, 100)}）` : ""}${comments.length ? `，并在艺人评论里说过：${comments.map((item) => `“${item}”`).join("、")}` : ""}。`,
-  });
+  const namesById = new Map(loadCharacters().map(character => [character.id, character.name]));
+  const userName = resolveUserIdentity(undefined, "weverse")?.name || "用户";
+  const resolveLiveCharacterName = (id: string) => id.startsWith("user:") ? userName : namesById.get(id) || "艺人";
+  for (const live of lives) {
+    if (!live || live.status !== "ended") continue;
+    const community = communities.find(row => row.id === live.communityId);
+    const names = (id: string) => community?.memberProfiles?.[id]?.displayName?.trim()
+      || resolveLiveCharacterName(id);
+    entries.push(...buildWeverseLiveMemory(live, characterId, community?.name || "Weverse 社区", names));
+  }
+  return entries.filter(entry => !options?.afterTimestamp || entry.timestamp > options.afterTimestamp)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
 export function deleteWeverseLiveMemory(liveId: string): void {
   revokeMemorySources([`wvs:${liveId}`]);
   for (const key of kvKeysWithPrefix(WEV_EVENT_PREFIX)) {
     const characterId = key.slice(WEV_EVENT_PREFIX.length);
-    const next = loadEventsByKey(key).filter(e => e.id !== `weverse_live_participant_${liveId}_${characterId}` && e.id !== `weverse_live_viewer_${liveId}_${characterId}`);
+    const next = loadEventsByKey(key).filter(e => e.id !== `weverse_live_participant_${liveId}_${characterId}` && e.id !== `weverse_live_viewer_${liveId}_${characterId}` && e.id !== `weverse_live_replay_${liveId}_${characterId}`);
     saveEventsByKey(key, next);
   }
 }
 
 /** A later replay view, not a live presence or a reply task. */
 export function recordWeverseReplaySummary(characterId:string,liveId:string,title:string,summary:string):void {
- upsert(characterId,{id:`weverse_live_viewer_${liveId}_${characterId}`,timestamp:new Date().toISOString(),shared:false,sourceKeys:[`wvs:${liveId}`],content:`[Weverse 回放观看] 该角色后来观看了直播《${title}》的整场回放：${summary}`});
+ upsert(characterId,{id:`weverse_live_replay_${liveId}_${characterId}`,timestamp:new Date().toISOString(),shared:false,sourceKeys:[`wvs:${liveId}`],content:`[Weverse 回放观看] 该角色后来观看了直播《${title}》的整场回放：${summary}`});
 }

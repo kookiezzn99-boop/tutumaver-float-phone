@@ -1,5 +1,5 @@
 "use client";
-import {AppNotificationBell,AppNotificationSetting} from "@/components/social/app-notifications";
+
 import {TwitterRecipientPicker,TwitterFrozenCard} from "./twitter-sharing";
 import {knownTwitterAccount,twitterRecognizes,twitterMessagePreview} from "@/lib/twitter-storage";
 import {prepareSocialMedia,markMediaSent,type SocialMedia} from '@/lib/social-media';
@@ -668,7 +668,7 @@ export function TwitterApp({ onClose, onNotice: externalNotice }: Props) {
     <header className={styles.header}>
       <button className={styles.headerAvatar} onClick={() => setDrawerOpen(true)} aria-label="打开我的菜单"><Avatar image={currentUserAccount.avatarUrl} label={currentUserAccount.name} /></button>
       <strong className={tab === "home" ? styles.xMark : ""}>{tab === "home" ? "𝕏" : tab === "explore" ? "搜索" : tab === "notices" ? "通知" : "私信"}</strong>
-      <AppNotificationBell app="twitter"/><button className={styles.headerPeople} onClick={() => setFollowPageOpen(true)} aria-label="角色关注列表"><UserRoundPlus size={27} strokeWidth={2.2} /></button>
+      <button className={styles.headerPeople} onClick={() => setFollowPageOpen(true)} aria-label="角色关注列表"><UserRoundPlus size={27} strokeWidth={2.2} /></button>
     </header>
 
     <main className={styles.main} onTouchStart={event => { pullStartRef.current = tab === "home" && event.currentTarget.scrollTop <= 1 ? event.touches[0].clientY : null; }} onTouchMove={event => { if (pullStartRef.current !== null) setPullDistance(Math.max(0, Math.min(175, event.touches[0].clientY - pullStartRef.current))); }} onTouchEnd={event => { const start = pullStartRef.current; pullStartRef.current = null; setPullDistance(0); if (start !== null && event.changedTouches[0].clientY - start > 140) { if (feedMode === "forYou") void refreshWorld(); else if (generationRef.current) alert(`${generationRef.current}正在生成中，稍后再试。`); else { setSelectedAccounts([]); setPicker("post"); } } }}>

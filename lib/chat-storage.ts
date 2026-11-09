@@ -324,6 +324,7 @@ export type ChatMessage = {
         appTags?: string[];
         appHistoryText?: string;
         appHistoryRole?: ChatMessageRole;
+        questionBoxSnapshot?: import("./question-box-chat").QuestionBoxSnapshot;
         theqooSnapshot?: import("./theqoo-storage").TheqooPost & { translationMode: import("./theqoo-storage").TheqooTranslationMode };
         avatarRecommendationForCharacterId?: string;
         avatarRecommendationStatus?: "pending" | "accepted" | "declined";

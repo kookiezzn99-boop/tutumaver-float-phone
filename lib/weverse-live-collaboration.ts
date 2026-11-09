@@ -47,7 +47,7 @@ export function addWeverseLiveGuest(liveId: string, userId: string, guestId: str
   updateWeverseLive(live.id, {
     activeCharacterIds: [...live.activeCharacterIds, guestId],
     hostCharacterIds: [...new Set([...live.hostCharacterIds, guestId])],
-    participantPresence: [...live.participantPresence, { characterId: guestId, joinedAt: now }],
+    participantPresence: [...live.participantPresence, { characterId: guestId, joinedAt: now, joinedVia: "invitation" }],
     viewerPresence: live.viewerPresence.map(item => item.characterId === guestId && !item.leftAt ? { ...item, leftAt: now } : item),
     segments: [...live.segments, { id: createWeverseId("wvs_live_system"), characterId: guestId, kind: "system", original: `${displayName} 加入了 Live`, createdAt: now }],
   });

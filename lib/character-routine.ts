@@ -2,7 +2,7 @@ import { loadChatSessions, loadChatContacts, loadChatMessages } from './chat-sto
 import {kvGet,kvSet,registerKvMigration} from './kv-db';
 import {loadCharacters} from './character-storage';
 import {loadOwnerCalendarPlans} from './calendar-storage';
-import {formatZonedPromptTimestamp,getSystemTimeZone} from './character-time';
+import {formatZonedPromptTimestamp,getSystemTimeZone,normalizeTimeZone} from './character-time';
 export const ROUTINE_KEY='ai_phone_character_routines_v1';
 const CYCLE_KEY='ai_phone_sleep_cycles_v1';
 registerKvMigration(ROUTINE_KEY);registerKvMigration(CYCLE_KEY);
@@ -16,7 +16,7 @@ export type SleepState={sleeping:boolean;briefAwake:boolean;endsAt:number;cycleI
 /** Persist the random seed of a cycle; calendar changes adjust availability without re-rolling. */
 export function getCharacterSleep(id:string,at=new Date()):SleepState|null{
  const r=loadCharacterRoutine(id);if(!r.enabled)return null;
- const zone=loadCharacters().find(c=>c.id===id)?.timeZone||getSystemTimeZone();
+ const zone=normalizeTimeZone(loadCharacters().find(c=>c.id===id)?.timeZone)||getSystemTimeZone();
  const now=at.getTime(),wall=Date.parse(formatZonedPromptTimestamp(at,zone).slice(0,10)+'T00:00:00Z');
  let cycles:Record<string,{start:number;duration:number;night:number}>={};try{cycles=JSON.parse(kvGet(CYCLE_KEY)||'{}');}catch{}
  const work=loadOwnerCalendarPlans('character',id).flatMap(p=>p.items).filter(i=>i.kind!=='milestone'&&(i.busyLevel||(i.source==='manual'?1:/工作|拍摄|录制|演出|彩排|会议|采访|课程|训练|上班|夜班/.test(i.title)?3:2))>=2).map(i=>{let start=zonedEpoch(Date.parse(`${i.date}T${i.startTime}:00Z`),zone),end=zonedEpoch(Date.parse(`${i.date}T${i.endTime}:00Z`),zone);if(end<=start)end=zonedEpoch(Date.parse(`${i.date}T${i.endTime}:00Z`)+86400000,zone);return {start,end};}).sort((a,b)=>a.start-b.start);
@@ -45,5 +45,5 @@ export function getCharacterSleep(id:string,at=new Date()):SleepState|null{
 
 export function routineConversationPrompt(id:string):string {
  const r=loadCharacterRoutine(id);if(!r.enabled)return '';
- return `\n【弹性作息】通常在 ${r.sleepFrom}～${r.sleepTo} 之间自然准备入睡。这是浮动范围，不是到最早时间必须说晚安的指令。正在来回聊天时先接住话题，可自然表达困意或今晚晚点睡；不要机械催睡或突然结束。对方明确道别或话题告一段落后再自然休息；不要把刚才仍在聊的人写成已经睡着。`;
+ return `\n【弹性作息】通常在角色当地时间 ${r.sleepFrom}～${r.sleepTo} 之间自然准备入睡。这是浮动范围，不是到最早时间必须说晚安的指令。正在来回聊天时先接住话题，可自然表达困意或今晚晚点睡；不要机械催睡或突然结束。对方明确道别或话题告一段落后再自然休息；不要把刚才仍在聊的人写成已经睡着。`;
 }

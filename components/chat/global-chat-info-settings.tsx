@@ -341,7 +341,7 @@ export function GlobalChatInfoSettings({ onBack }: { onBack: () => void }) {
                         <User size={20} className="text-[var(--c-icon)]" />
                         <div className="menu-label-group"><span className="menu-label">用户头像</span><span className="menu-desc">聊天、联系人及朋友圈默认使用</span></div>
                         <div className="menu-right gap-2">
-                            {avatar ? <img src={avatar} className="h-9 w-9 rounded-full object-cover" alt="全局聊天头像" /> : <span className="menu-desc">跟随用户资料</span>}
+                            {avatar ? <img data-chat-avatar src={avatar} className="h-9 w-9 object-cover" alt="全局聊天头像" /> : <span className="menu-desc">跟随用户资料</span>}
                             {avatar && <button aria-label="清除全局聊天头像" onClick={event => { event.stopPropagation(); setAvatar(""); saveSettings({ globalChatUserAvatar: "" }); }}><X size={15} /></button>}
                             <ChevronRight size={16} />
                         </div>

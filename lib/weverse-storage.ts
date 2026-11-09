@@ -27,6 +27,7 @@ export type WeverseHistoryMode = "new" | "existing" | "custom";
 export type WeverseCommunity = {
   userIdentityId?: string;
   liveStyle?: string;
+  chineseProxyInput?: boolean;
   id: string; name: string; description?: string; avatarUrl?: string; coverUrl?: string;
   official: WeverseAccountProfile;
   memberCharacterIds: string[];
@@ -98,6 +99,7 @@ export type WeverseLiveSegment = {
   characterId?: string;
   original: string;
   translated?: string;
+  replyToCommentIds?: string[];
   createdAt: number;
 };
 export type WeverseLiveComment = {
@@ -115,6 +117,7 @@ export type WeverseLivePresence = {
   joinedAt: number;
   leftAt?: number;
   commented?: boolean;
+  joinedVia?: "invitation" | "viewer";
 };
 export type WeverseLive = {
   id: string;
@@ -184,6 +187,7 @@ function normalizeLiveSegment(raw: unknown): WeverseLiveSegment | null {
   return {
     id: item.id, kind, characterId: typeof item.characterId === "string" && item.characterId ? item.characterId : undefined,
     original, translated: typeof item.translated === "string" && item.translated.trim() ? item.translated.trim() : undefined,
+    replyToCommentIds: uniqueStrings(item.replyToCommentIds),
     createdAt: typeof item.createdAt === "number" && Number.isFinite(item.createdAt) ? item.createdAt : Date.now(),
   };
 }
@@ -208,7 +212,7 @@ function normalizeLivePresence(raw: unknown): WeverseLivePresence | null {
   const item = raw as Partial<WeverseLivePresence>;
   if (typeof item.characterId !== "string" || !item.characterId.trim()) return null;
   const joinedAt = typeof item.joinedAt === "number" && Number.isFinite(item.joinedAt) ? item.joinedAt : Date.now();
-  return { characterId: item.characterId.trim(), joinedAt, leftAt: typeof item.leftAt === "number" && Number.isFinite(item.leftAt) ? item.leftAt : undefined, commented: item.commented === true };
+  return { characterId: item.characterId.trim(), joinedAt, leftAt: typeof item.leftAt === "number" && Number.isFinite(item.leftAt) ? item.leftAt : undefined, commented: item.commented === true, joinedVia: item.joinedVia === "invitation" || item.joinedVia === "viewer" ? item.joinedVia : undefined };
 }
 function normalizeLive(raw: unknown): WeverseLive | null {
   if (!raw || typeof raw !== "object") return null;
@@ -224,7 +228,7 @@ function normalizeLive(raw: unknown): WeverseLive | null {
   const participantPresenceRaw = Array.isArray((item as any).participantPresence) ? (item as any).participantPresence : [];
   const participantPresence = participantPresenceRaw.map(normalizeLivePresence).filter((v: WeverseLivePresence | null): v is WeverseLivePresence => Boolean(v));
   if (!participantPresence.length) {
-    for (const characterId of hostCharacterIds) participantPresence.push({ characterId, joinedAt: startedAt, leftAt: status === "ended" ? (typeof item.endedAt === "number" ? item.endedAt : startedAt) : undefined });
+    for (const characterId of (status === "ended" ? hostCharacterIds.slice(0, 1) : hostCharacterIds)) participantPresence.push({ characterId, joinedAt: startedAt, leftAt: status === "ended" ? (typeof item.endedAt === "number" ? item.endedAt : startedAt) : undefined });
   }
   const viewerPresenceRaw = Array.isArray((item as any).viewerPresence) ? (item as any).viewerPresence : [];
   const viewerPresence = viewerPresenceRaw.map(normalizeLivePresence).filter((v: WeverseLivePresence | null): v is WeverseLivePresence => Boolean(v));
@@ -258,6 +262,7 @@ function normalizeCommunity(raw: unknown): WeverseCommunity | null {
     official: { displayName: typeof officialRaw.displayName === "string" && officialRaw.displayName.trim() ? officialRaw.displayName : `${item.name} Official`, avatarUrl: typeof officialRaw.avatarUrl === "string" ? officialRaw.avatarUrl : undefined, bio: typeof officialRaw.bio === "string" ? officialRaw.bio : undefined },
     userIdentityId: typeof item.userIdentityId === "string" ? item.userIdentityId : undefined,
     liveStyle: typeof item.liveStyle === "string" ? item.liveStyle : undefined,
+    chineseProxyInput: item.chineseProxyInput !== false,
     memberCharacterIds: uniqueStrings(item.memberCharacterIds), memberProfiles: profiles as Record<string, WeverseMemberProfile>, officialMediaPhotoIds: uniqueStrings(item.officialMediaPhotoIds), fanCount: finiteNonNegative(item.fanCount, 100000),
     historyMode, historyStartAt: typeof item.historyStartAt === "number" && Number.isFinite(item.historyStartAt) ? item.historyStartAt : undefined,
     historyInitializedAt: typeof item.historyInitializedAt === "number" && Number.isFinite(item.historyInitializedAt) ? item.historyInitializedAt : undefined,

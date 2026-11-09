@@ -338,7 +338,7 @@ export function WeverseLiveView({ isUserHost, isUserGuest, artistViewer, onLiveA
             onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); sendDraft(); } }}
             placeholder={isUserHost ? (hostKind==="speech"?"说点什么…":"写下动作…") : isEnding ? "角色正在收尾…" : artistViewer ? "输入艺人评论，回车发送" : "输入评论，回车发送"}
           />
-          <button type="button" className={styles.livePlaneButton} onClick={()=>isUserHost && draft.trim() ? sendDraft() : onAdvance()} disabled={isUserHost ? busy : !canAdvance} aria-label={busy ? "生成中" : isPlaying ? "播放中" : "召唤或继续播放"}><Send size={18} /></button>
+          <button type="button" className={styles.livePlaneButton} onClick={() => { if (isUserHost && draft.trim()) sendDraft(); onAdvance(); }} disabled={isUserHost ? busy : !canAdvance} aria-label={busy ? "生成中" : isPlaying ? "播放中" : "召唤或继续播放"}><Send size={18} /></button>
           {!isUserHost && <>
             <button type="button" className={styles.liveHeartButton} onClick={tapHeart} aria-label="点赞"><Heart size={20} fill="currentColor" /></button>
             <div className={styles.liveHeartFloatLayer}>{heartBursts.map((item) => <Heart key={item.id} className={styles.liveHeartFloat} style={{ left: `${item.x}%` }} size={19} fill="currentColor" />)}</div>

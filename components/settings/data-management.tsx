@@ -1,5 +1,7 @@
 "use client";
 
+import { AndroidLocalBackupSettings } from "./android-local-backup";
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   AlertTriangle,
@@ -662,6 +664,8 @@ export function DataManagement({ onNotice }: DataManagementProps) {
           </div>
         </div>
       </div>
+
+      <AndroidLocalBackupSettings />
 
       <div className="data-section">
         <DataSectionTitle>Media Cleanup</DataSectionTitle>

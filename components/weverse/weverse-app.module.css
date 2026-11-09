@@ -840,7 +840,7 @@
 .communityReplayList { display:flex; flex-direction:column; gap:10px; }
 
 /* v0.5.8 · notification center */
-.notificationDot { position:absolute; top:4px; right:2px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:#ff4155; color:#fff; font-style:normal; font-size:calc(8px * var(--app-text-scale, 1)); font-weight:850; display:grid; place-items:center; line-height:1; }
+.notificationDot { position:absolute; top:4px; right:3px; width:7px; height:7px; border-radius:50%; background:#ff4155; }
 .notificationPage { background:#f5f6f7; padding:8px 12px 20px; }
 .notificationGroup { margin-bottom:16px; }
 .notificationGroup h3 { margin:6px 4px 8px; font-size:calc(12px * var(--app-text-scale, 1)); color:#656b6f; }
@@ -917,3 +917,5 @@
 .liveArtistChoice > small { white-space: nowrap; color: #70767b; font-size: calc(10px * var(--app-text-scale, 1)); }
 .liveArtistChoice[aria-pressed="true"] { border-color: #36cfc0; background: #edfffc; }
 .liveArtistChoice:disabled { opacity: .48; }
+
+.noticeSetting { min-height:42px; border-bottom:1px solid #8882; font-size:calc(13px * var(--app-text-scale,1)); --notice-accent:#2bbfa8; }

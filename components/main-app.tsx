@@ -5,6 +5,7 @@ import { ensureBuiltinAppleFont } from "@/lib/builtin-apple-font";
 import { useEffect, useState } from "react";
 
 import { AccountGate } from "@/components/auth/account-gate";
+import { AndroidLocalBackupScheduler } from "@/components/settings/android-local-backup";
 import { CloudBackupScheduler } from "@/components/cloud-backup-scheduler";
 import { MediaMaintenanceScheduler } from "@/components/media-maintenance-scheduler";
 import { DesktopShell } from "./desktop-shell";
@@ -320,6 +321,7 @@ export function MainApp() {
             <GlobalKeepAlive />
             <OfflinePushRevampAnnouncement />
             <CloudBackupScheduler />
+            <AndroidLocalBackupScheduler />
             <MediaMaintenanceScheduler />
           </MusicProvider>
         </main>

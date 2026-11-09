@@ -37,6 +37,7 @@ import { loadChatOfflineProjectionEntries } from "./chat-offline-storage";
 import { loadCheckPhoneProjectionEntries } from "./checkphone-storage";
 import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
 import { loadCustomAppTimelineEntries } from "./custom-app-storage";
+import { loadLysn } from "./lysn-storage";
 import { loadQuestionBoxProjectionEntries } from "./question-box-memory";
 import * as smsStorage from "./sms-storage";
 import {
@@ -829,12 +830,33 @@ export function loadNativeTimeline(
     }
 
     // ── Custom app timeline events ──
+    for (const message of loadLysn().messages.filter(message => message.characterId === characterId && message.sender === "artist" && message.kind !== "notice" && Number.isFinite(message.createdAt)).slice(-40)) {
+        const timestamp = new Date(message.createdAt).toISOString();
+        if (options?.afterTimestamp && timestamp <= options.afterTimestamp) continue;
+        const mediaLabel: Partial<Record<typeof message.kind, string>> = { photo: "照片", voice: "语音", sticker: "贴纸" };
+        const body = message.original?.trim() || message.photoDescription?.trim() || mediaLabel[message.kind];
+        if (!body) continue;
+        entries.push({
+            id: `lysn_post_${message.id}`,
+            sourceApp: "custom_app",
+            sourceDetail: "custom_app_event",
+            authorType: "character",
+            timestamp,
+            customAppId: "lysn",
+            customAppName: "LYSN",
+            customAppLabel: "LYSN",
+            content: formatStoredPromptEventContent(`你在 LYSN 给订阅者发了消息：“${body.slice(0, 500)}”。`, {
+                label: "LYSN", timestamp, timeAware, timestampOptions,
+            }),
+        });
+    }
     for (const event of loadQuestionBoxProjectionEntries(characterId, { afterTimestamp: options?.afterTimestamp })) {
         entries.push({
             id: event.id,
             sourceApp: "custom_app",
             sourceDetail: "custom_app_event",
             authorType: event.authorType,
+            shared: event.shared,
             timestamp: event.timestamp,
             customAppId: "question_box",
             customAppName: "提问箱",

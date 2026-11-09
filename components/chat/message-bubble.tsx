@@ -919,6 +919,22 @@ function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; 
         }));
     };
 
+    if (d?.questionBoxSnapshot) {
+        const { question, answer } = d.questionBoxSnapshot;
+        return (
+            <article className="chat-app-card chat-question-box-card" data-disabled style={{ "--chat-app-card-accent": "#8066b0" } as React.CSSProperties}>
+                <div className="chat-app-card-head"><span className="chat-app-card-name">提问箱</span></div>
+                <div className="chat-app-card-title">匿名提问</div>
+                <div className="chat-app-card-body">{question}</div>
+                {answer && <div className="chat-app-card-sections"><div className="chat-app-card-section">
+                    <div className="chat-app-card-section-title">{answer.name}的回答</div>
+                    <div className="chat-app-card-section-text">{answer.original}</div>
+                    {answer.translated && answer.translated !== answer.original && <div className="chat-app-card-section-text">{answer.translated}</div>}
+                </div></div>}
+            </article>
+        );
+    }
+
     if (layout.html) {
         return (
             <div className={`chat-app-custom-card${toneClass}`} data-disabled={cardOpenDisabled || undefined} style={style} onClick={openApp}>

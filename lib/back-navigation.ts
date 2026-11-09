@@ -10,6 +10,13 @@ export function dispatchAppBack(){
 
  const candidates=entries.map((entry,i)=>({...entry,order:i})).filter(e=>{try{return e.active();}catch{return false;}}).sort((a,b)=>b.priority-a.priority||b.order-a.order);
  if(candidates[0]?.priority>1){candidates[0].run();return true;}
- const back=Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label="返回"],button[aria-label="Back"]')).reverse().find(b=>b.getClientRects().length&&!b.disabled);if(back){back.click();return true;}
+ const activeShell = document.querySelector<HTMLElement>('.phone-shell[data-active-app]:not([data-active-app=""])');
+ if (activeShell) {
+  const visiblePanes = Array.from(activeShell.querySelectorAll<HTMLElement>('.phone-app-pane')).filter(pane => pane.getClientRects().length > 0);
+  const pane = visiblePanes.at(-1) ?? activeShell;
+  const back = Array.from(pane.querySelectorAll<HTMLButtonElement>('button[data-app-back], button[aria-label^="返回"], button[aria-label="Back"]'))
+   .reverse().find(button => button.getClientRects().length && !button.disabled && button.getAttribute('aria-label') !== '返回桌面');
+  if (back) { back.click(); return true; }
+ }
  if(candidates.length){candidates[0].run();return true;}return false;
 }

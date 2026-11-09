@@ -250,7 +250,13 @@ export function loadTwitterProjectionEntries(characterId: string, afterTimestamp
  const label=(id:string,known:boolean)=>{ const p=id==="user"?state.profile:state.accounts[id]||state.characterProfiles[id];return `${p?.name||"网友"}${known?`（身份已知：${id.startsWith("user")?resolveUserIdentity()?.name||"User":loadCharacters().find(c=>c.id===id.replace(/:alt$/,""))?.name||"角色"}）`:"（仅知网名）"}`;};
  const samples:Record<string,number>={};
  for(const p of [...state.posts].sort((a,b)=>a.createdAt-b.createdAt)) {
- const target=state.posts.find(t=>t.id===p.replyToId);if(!target||!Number.isFinite(p.createdAt))continue;
+ if(!Number.isFinite(p.createdAt))continue;
+ if(!p.replyToId && own.has(p.authorId)) {
+   const body = p.original.trim().slice(0, 500) || p.imageDescription?.trim().slice(0, 500) || "图片帖";
+   entries.push({ sourceKeys: [`twitter:post:${p.id}`], id: `twitter_own_${p.id}`, timestamp: new Date(p.createdAt).toISOString(), content: `你在 X 发了帖：“${body}”。账号的已知身份范围保持原样。` });
+   continue;
+ }
+ const target=state.posts.find(t=>t.id===p.replyToId);if(!target)continue;
  const sent=own.has(p.authorId),received=own.has(target.authorId);if(!sent&&!received)continue;
  const viewer=sent?p.authorId:target.authorId,other=sent?target.authorId:p.authorId;const reset=Math.max(state.accounts[viewer]?.identityResetAt?.[twitterOwner(other)]||0,state.accounts[other]?.identityResetAt?.[twitterOwner(viewer)]||0);if(p.createdAt<=reset)continue;
  const answered=state.posts.some(t=>t.replyToId===p.id&&own.has(t.authorId));
@@ -269,7 +275,7 @@ export function loadTwitterProjectionEntries(characterId: string, afterTimestamp
  const index=c.messages.indexOf(m),prior=c.messages.slice(0,index).filter(t=>t.role==="user").at(-1);if(!prior)continue;
  const reset=Math.max(state.accounts[a]?.identityResetAt?.[twitterOwner(b)]||0,state.accounts[b]?.identityResetAt?.[twitterOwner(a)]||0);if(m.createdAt<=reset)continue;const snap={...m.identitySnapshot,[a]:twitterRecognizes(state,b,a),[b]:twitterRecognizes(state,a,b)};entries.push({sourceKeys:[`twitter:dm:${c.id}:${m.id}`],id:`twitter_dm_${m.id}`,timestamp:new Date(m.createdAt).toISOString(),shared:snap[a]===true&&snap[b]===true,content:`X 私信互动：${label(a,snap[b]===true)}说“${(prior.postSnapshot?twitterSnapshotText(prior.postSnapshot):prior.original).slice(0,2200)}”，角色回复“${m.original.slice(0,260)}”。`});
  }}
- return entries.filter(e=>!afterTimestamp||e.timestamp>afterTimestamp).slice(-80);
+ return entries.filter(e=>!afterTimestamp||e.timestamp>afterTimestamp).sort((a,b)=>a.timestamp.localeCompare(b.timestamp)).slice(-80);
 }
 
 export function twitterAccountEnabled(state: TwitterState, id: string): boolean { return id === "user" || Boolean(state.accounts[id] || (state.characterProfiles[id] && state.characterProfiles[id].enabled !== false)); }
