@@ -423,6 +423,7 @@ export type ChatAppSettings = {
     /** 全局聊天提示音配置（新消息/发送消息/来电/致电/挂断），在“全局聊天信息”里设置 */
     globalChatSounds?: ChatSoundsConfig;
     floatingDockEnabled?: boolean; // 悬浮球贴边半隐藏收拢模式（默认关）
+    iosKeepAliveEnabled?: boolean; // iOS 后台静音音频保活（常驻音频通道与屏幕唤醒）
 };
 
 // ── 聊天提示音配置 ────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import { CloudBackupScheduler } from "@/components/cloud-backup-scheduler";
 import { MediaMaintenanceScheduler } from "@/components/media-maintenance-scheduler";
 import { DesktopShell } from "./desktop-shell";
 import { OfflinePushRevampAnnouncement } from "./offline-push-revamp-announcement";
+import { GlobalKeepAlive } from "./global-keep-alive";
 import { PhoneLockScreen } from "./phone-lock-screen";
 import { MusicProvider } from "@/lib/music-context";
 import { startContactRecommendationScheduler } from "@/lib/contact-recommendation";
@@ -316,6 +317,7 @@ export function MainApp() {
               initialThemeProfile={preparedDesktopTheme?.profile}
               initialThemeAssets={preparedDesktopTheme?.assets}
             />
+            <GlobalKeepAlive />
             <OfflinePushRevampAnnouncement />
             <CloudBackupScheduler />
             <MediaMaintenanceScheduler />

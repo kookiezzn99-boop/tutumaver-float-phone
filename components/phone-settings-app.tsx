@@ -119,7 +119,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
     const [quickActionEnabled, setQuickActionEnabled] = useState(false);
     const [floatingDockEnabled, setFloatingDockEnabled] = useState(false);
     const [floatingDockSheetOpen, setFloatingDockSheetOpen] = useState(false);
-    const [keepAlive, setKeepAlive] = useState(false);
+    const [keepAlive, setKeepAlive] = useState(() => Boolean(loadChatAppSettings().iosKeepAliveEnabled));
     // 角色电脑：施工中弹窗（返回 / 仍要看看）
     const pageBodyRef = useRef<HTMLDivElement | null>(null);
 
@@ -252,10 +252,9 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
 
     const handleKeepAliveChange = useCallback((next: boolean) => {
         setKeepAlive(next);
-        
-        // use-weixin-bridge 监听这个事件来起停保活（与微信 Bot 的启用状态无关）
-        
-        onNotice(next ? "已开启后台保活" : "已关闭后台保活");
+        saveChatAppSettings({ ...loadChatAppSettings(), iosKeepAliveEnabled: next });
+        window.dispatchEvent(new Event("chat-app-settings-changed"));
+        onNotice(next ? "已开启 iOS 全局后台保活" : "已关闭 iOS 全局后台保活");
     }, [onNotice]);
 
     const imageGenerationItem = SETTINGS_MENU.find(i => i.id === "imageGeneration")!;
@@ -505,6 +504,18 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                     </span>
                                     <span className="menu-right settings-tools-menu-toggle">
                                         <Toggle checked={quickActionEnabled} onChange={handleQuickActionChange} className="settings-toggle-control" />
+                                    </span>
+                                </div>
+                                <div className="menu-item settings-tools-menu-item">
+                                    <span className="card-icon card-icon-glass">
+                                        <GlassIcon name="keep-alive" />
+                                    </span>
+                                    <span className="settings-tools-menu-copy">
+                                        <span className="menu-label appearance-menu-item-label">iOS 全局后台保活</span>
+                                        <span className="menu-desc settings-tools-menu-desc">常驻无声通道与唤醒锁，防止切后台或使用其他软件时挂起 AI</span>
+                                    </span>
+                                    <span className="menu-right settings-tools-menu-toggle">
+                                        <Toggle checked={keepAlive} onChange={handleKeepAliveChange} className="settings-toggle-control" />
                                     </span>
                                 </div>
                             </div>
